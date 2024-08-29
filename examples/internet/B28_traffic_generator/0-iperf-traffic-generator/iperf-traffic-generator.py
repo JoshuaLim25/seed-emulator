@@ -2,11 +2,59 @@
 # encoding: utf-8
 
 from seedemu.compiler import Docker, Platform
-from seedemu.core import Emulator, Binding, Filter
+from seedemu.core import Emulator, Binding, Filter, Service
 from seedemu.services import TrafficService, TrafficServiceType
 from seedemu.layers import EtcHosts
 from examples.internet.B00_mini_internet import mini_internet
+from seedemu.utilities import Makers
 import os, sys
+
+
+def createServiceList(count: int) -> list[Service]:
+    """
+    Create a list of Service instances.
+
+    @param count: The number of Service instances to create.
+    """
+    return [Service() for _ in range(count)]
+
+def expand_network(base, emu, start_asn=200, num_as=10, hosts_per_as=3):
+    """
+    Expand the network by adding new Autonomous Systems (ASes) and hosts.
+
+    @param base: The base layer of the emulator.
+    @param emu: The emulator instance.
+    @param start_asn: The starting ASN for the new ASes.
+    @param num_as: The number of ASes to add.
+    @param hosts_per_as: The number of hosts to create in each AS.
+    """
+    for i in range(num_as):
+        asn = start_asn + i
+        # Cycle through exchanges 100-105
+        exchange = 100 + (i % 6)
+        # Use custom prefix for ASNs > 255, as those execeeding 255
+        # can't get the default network prefix assignment
+        # default: `10.{asn}.{id}.0/24`, see ../../../../docs/user_manual/as.md
+        if asn >= 256:
+            prefix = f'10.{asn // 256}.{asn % 256}.0/24'
+            stub_as = base.createAutonomousSystem(asn)
+            stub_as.createNetwork('net0', prefix=prefix)
+            router = stub_as.createRouter('router0')
+            router.joinNetwork('net0')
+            router.joinNetwork(f'ix{exchange}')
+
+            for j in range(hosts_per_as):
+                name = f'host_{j}'
+                host = stub_as.createHost(name)
+                host.joinNetwork('net0')
+        else:
+            Makers.makeStubAsWithHosts(emu, base, asn, exchange, hosts_per_as)
+
+        print(f"Created ASN {asn} with {hosts_per_as} hosts, connected to IX{exchange}")
+        # save emulator state after each addition
+        # don't think this'll work, see ../../../basic/A05_components/README.md
+        # emu.dump(f"emulator_state_{asn}.pkl")
+        # print(f"Emulator state saved after creating ASN {asn}.")
 
 def run(dumpfile=None):
     ###############################################################################
@@ -48,8 +96,11 @@ def run(dumpfile=None):
         TrafficServiceType.IPERF_GENERATOR,
         log_file="/root/iperf3_generator.log",
         protocol="TCP",
-        duration=60,
-        rate=0
+        duration=10,
+        # bits/sec (0 for unlimited)
+        rate=0,
+        extra_options="--bidir -b 0",
+        # "-b 0" will disable bandwidth limit
     ).addReceivers(hosts=["iperf-receiver-1", "iperf-receiver-2"])
 
 
@@ -75,6 +126,9 @@ def run(dumpfile=None):
     emu.addBinding(
         Binding("iperf-receiver-2", filter=Filter(asn=171, nodeName="iperf-receiver-2"))
     )
+
+    # Expand the network
+    expand_network(base, emu, start_asn=200, num_as=20, hosts_per_as=2)
 
     # Add the layers
     emu.addLayer(traffic_service)
