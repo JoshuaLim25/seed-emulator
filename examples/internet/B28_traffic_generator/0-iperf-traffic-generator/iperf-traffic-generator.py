@@ -18,6 +18,7 @@ def createServiceList(count: int) -> list[Service]:
     """
     return [Service() for _ in range(count)]
 
+
 def expand_network(base, emu, start_asn=200, num_as=10, hosts_per_as=3):
     """
     Expand the network by adding new Autonomous Systems (ASes) and hosts.
@@ -51,10 +52,6 @@ def expand_network(base, emu, start_asn=200, num_as=10, hosts_per_as=3):
             Makers.makeStubAsWithHosts(emu, base, asn, exchange, hosts_per_as)
 
         print(f"Created ASN {asn} with {hosts_per_as} hosts, connected to IX{exchange}")
-        # save emulator state after each addition
-        # don't think this'll work, see ../../../basic/A05_components/README.md
-        # emu.dump(f"emulator_state_{asn}.pkl")
-        # print(f"Emulator state saved after creating ASN {asn}.")
 
 def run(dumpfile=None):
     ###############################################################################
@@ -88,7 +85,9 @@ def run(dumpfile=None):
 
     etc_hosts = EtcHosts()
 
+
     traffic_service = TrafficService()
+
     traffic_service.install("iperf-receiver-1", TrafficServiceType.IPERF_RECEIVER, log_file="/root/iperf3_receiver.log")
     traffic_service.install("iperf-receiver-2", TrafficServiceType.IPERF_RECEIVER, log_file="/root/iperf3_receiver.log")
     traffic_service.install(
@@ -96,10 +95,11 @@ def run(dumpfile=None):
         TrafficServiceType.IPERF_GENERATOR,
         log_file="/root/iperf3_generator.log",
         protocol="TCP",
-        duration=10,
+        duration=30,
         # bits/sec (0 for unlimited)
         rate=0,
-        extra_options="--bidir -b 0",
+        extra_options="-b 0",
+        # --bidir -b 0
         # "-b 0" will disable bandwidth limit
     ).addReceivers(hosts=["iperf-receiver-1", "iperf-receiver-2"])
 
@@ -127,8 +127,35 @@ def run(dumpfile=None):
         Binding("iperf-receiver-2", filter=Filter(asn=171, nodeName="iperf-receiver-2"))
     )
 
+    ########
+
     # Expand the network
-    expand_network(base, emu, start_asn=200, num_as=20, hosts_per_as=2)
+    # expand_network(base, emu)
+    expand_network(base, emu, start_asn=200, num_as=10, hosts_per_as=25)
+
+    # # Add hosts to AS-200
+    # as200 = base.getAutonomousSystem(200)
+    # as200.createHost("iperf-generator").joinNetwork("net0")
+    #
+    # # Add hosts to AS-201
+    # as201 = base.getAutonomousSystem(201)
+    # as201.createHost("iperf-receiver-1").joinNetwork("net0")
+    #
+    # # Add hosts to AS-202
+    # as201 = base.getAutonomousSystem(202)
+    # as201.createHost("iperf-receiver-2").joinNetwork("net0")
+    #
+    # # Binding virtual nodes to physical nodes
+    # emu.addBinding(
+    #     Binding("iperf-generator", filter=Filter(asn=200, nodeName="iperf-generator"))
+    # )
+    # emu.addBinding(
+    #     Binding("iperf-receiver-1", filter=Filter(asn=201, nodeName="iperf-receiver-1"))
+    # )
+    # emu.addBinding(
+    #     Binding("iperf-receiver-2", filter=Filter(asn=202, nodeName="iperf-receiver-2"))
+    # )
+
 
     # Add the layers
     emu.addLayer(traffic_service)

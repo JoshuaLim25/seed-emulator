@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# Exit on error, unset var, pipe fail
 set -o pipefail nounset errexit
 
 function setup () {
-    cd output && docker compose build && docker compose up
+    cd output && docker compose up || true
+    docker compose down
 }
 
 python3 iperf-traffic-generator.py && setup
