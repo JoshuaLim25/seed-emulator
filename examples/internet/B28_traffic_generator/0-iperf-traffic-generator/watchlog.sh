@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-watchfile="/root/iperf3_generator.log"
+watchfile="/logs/iperf3_generator.log"
 pattern='Done.'
 container_id=$(docker ps -a --filter "name=iperf-generator" --format "{{.ID}}")
 logfile="$HOME/research-projects/iperf3-logs/$(date +'%Y-%m-%d-%H:%M')-iperf3-generator.log"

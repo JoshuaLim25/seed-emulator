@@ -55,3 +55,12 @@ do
     sleep 20000
     echo "IM AWAKE :)"
 done
+
+# or
+
+
+for i in $(seq 1 100); do
+    echo "Starting run $i"
+    ./run_iperf_test.sh
+    sleep 5  # Optional: add a small delay between runs
+done
